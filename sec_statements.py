@@ -837,6 +837,11 @@ def to_compact(df: pd.DataFrame, kind: str, ticker: str = "",
                     seen_labels[lbl] = c
     vals = list(seen_labels.values())
 
+    def _scale(v):
+        if pd.isna(v):
+            return "-"
+        return _fmt_val(v)
+
     title = _role_title(kind)
     pretty_cols = [col_label_pretty(c) for c in vals]
 
@@ -901,11 +906,6 @@ def to_compact(df: pd.DataFrame, kind: str, ticker: str = "",
         if is_abstract:
             lines.append(f"{indent}[{label}]")
             continue
-
-        def _scale(v):
-            if pd.isna(v):
-                return "-"
-            return _fmt_val(v)
 
         val_str = " | ".join(_scale(r[c]) for c in vals)
         tag = f" [{concept}]" if (concept and include_tags) else ""
