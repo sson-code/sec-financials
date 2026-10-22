@@ -4,6 +4,22 @@ A Model Context Protocol (MCP) server that pulls as-reported financial data dire
 
 ---
 
+## How It Works
+
+```mermaid
+flowchart LR
+    User("👤 User") -->|"natural language\nquestion"| Claude("🤖 Claude Desktop\n/ Claude Code")
+    Claude -->|"tool call\ne.g. get_statement(TSLA)"| MCP("sec_mcp.py\nMCP Server")
+    MCP -->|"fetch filings\n& parse XBRL"| LIB("sec_statements.py\nData Library")
+    LIB -->|"submissions\ncompanyfacts\nfiling files"| EDGAR("📄 SEC EDGAR\nPublic API")
+    EDGAR -->|"raw XBRL data"| LIB
+    LIB -->|"structured table"| MCP
+    MCP -->|"formatted result"| Claude
+    Claude -->|"rendered table"| User
+```
+
+---
+
 ## What It Does
 
 Connects Claude to SEC XBRL filings in real time. You can ask naturally — "Show me Tesla's quarterly income statement" or "What notes does IBM file?" — and get structured financial data back without leaving the conversation.
