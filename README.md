@@ -94,47 +94,23 @@ Fetch the same statement for multiple companies and compare side by side in one 
 
 ## Setup
 
-### 1. Clone the repo
+### Option A — Claude Desktop (.mcpb)
 
+1. Download **[sec-financials.mcpb](https://github.com/sson-code/sec-financials/releases/latest/download/sec-financials.mcpb)**
+2. Double-click it — Claude Desktop will prompt you to install
+3. Restart Claude Desktop
+
+### Option B — Claude Code
+
+1. Download **[sec-financials.mcpb](https://github.com/sson-code/sec-financials/releases/latest/download/sec-financials.mcpb)** — unzip it
+2. Install dependencies:
 ```bash
-git clone https://github.com/seungkwonson/sec-financials
-cd sec-financials
+pip3 install "mcp<2" pandas requests
 ```
-
-### 2. Install dependencies
-
+3. Add to Claude Code (replace the path with wherever you unzipped):
 ```bash
-pip install "mcp<2" pandas requests
+claude mcp add sec-financials -- python3 ~/Downloads/sec-financials/sec_mcp.py
 ```
-
-### 3. Set up config
-
-```bash
-cp config.example.json config.json
-```
-
-No edits needed — the YCharts identity is pre-configured.
-
-### 4. Add to Claude Desktop
-
-Open `~/Library/Application Support/Claude/claude_desktop_config.json` and add:
-
-```json
-{
-  "mcpServers": {
-    "sec-financials": {
-      "command": "python3",
-      "args": ["/path/to/sec-financials/sec_mcp.py"]
-    }
-  }
-}
-```
-
-Replace `/path/to/sec-financials/` with the actual path where you cloned the repo.
-
-### 5. Restart Claude Desktop
-
-The tool will appear automatically on next launch.
 
 ---
 
