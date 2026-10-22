@@ -91,23 +91,13 @@ cd sec-financials
 pip install "mcp<2" pandas requests
 ```
 
-### 3. Add your SEC identity
-
-Copy the example config and fill in your name and email:
+### 3. Set up config
 
 ```bash
 cp config.example.json config.json
 ```
 
-Edit `config.json`:
-
-```json
-{
-  "sec_user_agent": "Your Name your@email.com"
-}
-```
-
-SEC EDGAR requires a valid name and email for API access. Use your real ones.
+No edits needed — the YCharts identity is pre-configured.
 
 ### 4. Add to Claude Desktop
 
