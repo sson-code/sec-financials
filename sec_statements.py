@@ -564,7 +564,8 @@ def build_statement(lines, store, ctxs, labels, kind, axis_members=None):
 
         # Emit plain row first (drop only if non-abstract, all-empty, and member rows exist)
         if not l.abstract and all_empty and member_rows:
-            pass  # drop plain — data lives entirely in member rows
+            # Keep as a section header (bold, no values) so member rows have a visible parent
+            rows.append({**plain, "abstract": True})
         else:
             rows.append(plain)
 
@@ -725,7 +726,7 @@ def to_markdown(df: pd.DataFrame, kind: str, ticker: str = "",
         if dim and concept and not bool(r["abstract"]):
             member_concept_counts.setdefault(clean, set()).add(concept)
             concepts_with_members.add(concept)
-        elif not dim and not bool(r["abstract"]) and concept:
+        elif not dim and concept:
             concept_labels[concept] = clean
     repeated_members = {m for m, concepts in member_concept_counts.items() if len(concepts) > 1}
 
@@ -865,7 +866,7 @@ def to_compact(df: pd.DataFrame, kind: str, ticker: str = "",
         if dim and concept and not bool(r["abstract"]):
             member_concept_counts.setdefault(clean, set()).add(concept)
             concepts_with_members.add(concept)
-        elif not dim and not bool(r["abstract"]) and concept:
+        elif not dim and concept:
             concept_labels[concept] = clean
     repeated_members = {m for m, concepts in member_concept_counts.items() if len(concepts) > 1}
 
@@ -1019,7 +1020,23 @@ def build_any_role(pre: ET.Element, cal, store, ctxs, lab, role_uri: str):
                 inst += 1
             else:
                 dur += 1
-    kind = "balance_sheet" if inst >= dur else "income_statement"
+    # If all facts are dimensional (no plain facts), scan dim facts for the same detection
+    if inst == 0 and dur == 0:
+        for l in lines[:15]:
+            if l.abstract:
+                continue
+            for axis, members in axis_members.items():
+                for member in members:
+                    for (s, _) in dim_index(store, l.concept, ctxs, axis, member):
+                        if s is None:
+                            inst += 1
+                        else:
+                            dur += 1
+                    if inst + dur:
+                        break
+                if inst + dur:
+                    break
+    kind = "balance_sheet" if inst > dur else "income_statement"
     df, cols = build_statement(lines, store, ctxs, lab, kind, axis_members)
     checks = calc_checks(cal, role_uri, store, ctxs, cols, kind, axis_members, leaf_set) \
         if cal is not None and cols else []
