@@ -1171,6 +1171,7 @@ def history_on_template(stmt: pd.DataFrame, cf: pd.DataFrame, kind: str, form: s
     h = cf[cf.concept.isin(stmt.loc[~stmt.abstract, "concept"].unique())].copy()
     if kind == "balance_sheet":
         h = h[h.start.isna()]
+        h = h[h.form == form]
     else:
         h = h[h.start.notna()]
         days = (pd.to_datetime(h.end) - pd.to_datetime(h.start)).dt.days
