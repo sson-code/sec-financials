@@ -1,0 +1,50 @@
+{
+  "manifest_version": "0.3",
+  "name": "sec-financials",
+  "display_name": "SEC Financials",
+  "version": "1.0.0",
+  "description": "As-reported financial data from SEC EDGAR for any US public company. Pulls income statements, balance sheets, cash flow statements, and notes directly from XBRL filings.",
+  "author": {
+    "name": "YCharts",
+    "email": "developers@ycharts.com",
+    "url": "https://github.com/sson-code/sec-financials"
+  },
+  "server": {
+    "type": "python",
+    "entry_point": "server/sec_mcp.py",
+    "mcp_config": {
+      "command": "python3",
+      "args": ["${__dirname}/server/sec_mcp.py"]
+    }
+  },
+  "compatibility": {
+    "platforms": ["darwin", "linux", "win32"],
+    "runtimes": {
+      "python": ">=3.10"
+    }
+  },
+  "tools": [
+    {
+      "name": "start_company",
+      "description": "List all available statements and notes for a company"
+    },
+    {
+      "name": "get_statement",
+      "description": "Fetch a financial statement or note from a specific SEC filing"
+    },
+    {
+      "name": "get_history",
+      "description": "Fetch multi-year annual history for a core statement"
+    },
+    {
+      "name": "list_sections",
+      "description": "List all available sections for a company"
+    },
+    {
+      "name": "discover",
+      "description": "List all notes in a specific filing category"
+    }
+  ],
+  "keywords": ["SEC", "EDGAR", "financials", "XBRL", "stocks", "earnings"],
+  "license": "MIT"
+}
