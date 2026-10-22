@@ -97,12 +97,35 @@ class SEC:
 
 # ---------------------------------------------------------------------- discovery
 def ticker_to_cik(sec: SEC, ticker: str) -> tuple[str, str]:
+    """Resolve a ticker symbol OR CIK number to (zero-padded CIK, company name).
+
+    - Ticker (e.g. "AAPL"): looked up in SEC company_tickers.json (exchange-listed only)
+    - CIK (e.g. "1803498" or "0001803498"): all-digit input bypasses the ticker map,
+      enabling access to non-traded entities (BDCs, interval funds, closed-end funds).
+    """
+    t = ticker.strip()
+
+    # CIK input: 1–10 digits (with or without leading zeros)
+    if re.match(r"^\d{1,10}$", t):
+        cik = f"{int(t):010d}"
+        try:
+            sub = sec.json(f"https://data.sec.gov/submissions/CIK{cik}.json")
+            name = sub.get("name", f"CIK {cik}")
+            return cik, name
+        except Exception:
+            raise ValueError(f"CIK {cik} not found in SEC EDGAR")
+
+    # Ticker lookup
     data = sec.json("https://www.sec.gov/files/company_tickers.json")
-    t = ticker.upper()
+    tu = t.upper()
     for row in data.values():
-        if row["ticker"].upper() == t:
+        if row["ticker"].upper() == tu:
             return f'{int(row["cik_str"]):010d}', row["title"]
-    raise ValueError(f"Ticker {ticker} not found in SEC ticker file")
+    raise ValueError(
+        f"Ticker '{ticker}' not found in SEC ticker file. "
+        f"For companies without a ticker (BDCs, interval funds, closed-end funds), "
+        f"pass the CIK number directly (e.g. '1803498' for BCRED)."
+    )
 
 
 def list_filings(sec: SEC, cik: str, form: str) -> list[dict]:
@@ -508,8 +531,8 @@ def build_statement(lines, store, ctxs, labels, kind, axis_members=None):
                 "negated": negated, "preferred_label": pref.rsplit("/", 1)[-1] if pref else None,
                 "dimension_member": ""}
 
-        # Emit member rows (post-order: children first, then aggregate members)
-        member_rows_emitted = 0
+        # Collect member rows first (needed to decide whether to drop the plain row)
+        member_rows = []
         if not l.abstract:
             for axis, members in axis_members.items():
                 for member in members:
@@ -525,8 +548,7 @@ def build_statement(lines, store, ctxs, labels, kind, axis_members=None):
                     for c in cols:
                         f = _lookup(didx, c, pref)
                         mrow[col_label(c)] = (-f["value"] if negated else f["value"]) if f else None
-                    rows.append(mrow)
-                    member_rows_emitted += 1
+                    member_rows.append(mrow)
 
         # Plain (non-dimensional) row
         plain = {**base}
@@ -540,10 +562,14 @@ def build_statement(lines, store, ctxs, labels, kind, axis_members=None):
                     all_empty = False
             plain[col_label(c)] = v
 
-        # Drop plain row if non-abstract, all values empty, and member rows exist
-        if not l.abstract and all_empty and member_rows_emitted > 0:
-            continue
-        rows.append(plain)
+        # Emit plain row first (drop only if non-abstract, all-empty, and member rows exist)
+        if not l.abstract and all_empty and member_rows:
+            pass  # drop plain — data lives entirely in member rows
+        else:
+            rows.append(plain)
+
+        # Member rows follow their parent so breakdowns always appear directly below the total
+        rows.extend(member_rows)
 
     return pd.DataFrame(rows), cols
 
@@ -604,9 +630,12 @@ def _fmt_val(v) -> str:
     """Format a numeric value: decimals for small numbers, no -0."""
     if pd.isna(v):
         return ""
-    if abs(v) < 0.5:
+    if abs(v) < 1e-9:
         return "0"
-    # Show 2 decimal places for per-share / ratio values (abs < 10000, has fractional part)
+    # Values < 1: ratios, small EPS (e.g. 0.14, 0.152) — show up to 4 decimal places
+    if abs(v) < 1:
+        return f"{v:.4f}".rstrip('0').rstrip('.')
+    # Per-share / ratio values with fractional parts (1 ≤ abs < 10,000)
     if abs(v) < 10_000 and abs(v - round(v)) > 0.005:
         return f"{v:,.2f}"
     return f"{v:,.0f}"
@@ -682,8 +711,10 @@ def to_markdown(df: pd.DataFrame, kind: str, ticker: str = "",
     lines.append("|:---|" + "|".join("---:" for _ in vals) + "|")
 
     # Pre-scan: find member labels repeated across multiple concepts (e.g. "Reportable Segment")
+    # Also collect which concepts have any dimension member rows (for consolidated label suffix).
     member_concept_counts: dict = {}
     concept_labels: dict = {}
+    concepts_with_members: set = set()
     for _, r in df.iterrows():
         dim = r.get("dimension_member", "") or ""
         if not isinstance(dim, str):
@@ -693,11 +724,14 @@ def to_markdown(df: pd.DataFrame, kind: str, ticker: str = "",
         clean = re.sub(r'\s*\[Member\]$', '', raw_label, flags=re.IGNORECASE).strip()
         if dim and concept and not bool(r["abstract"]):
             member_concept_counts.setdefault(clean, set()).add(concept)
+            concepts_with_members.add(concept)
         elif not dim and not bool(r["abstract"]) and concept:
             concept_labels[concept] = clean
     repeated_members = {m for m, concepts in member_concept_counts.items() if len(concepts) > 1}
 
-    seen_cv: set = set()
+    # plain_vals[concept] = val_key of the rendered plain row, used to dedup single-segment
+    # member rows (when member values == plain values the breakdown is redundant).
+    plain_vals: dict = {}
 
     for _, r in df.iterrows():
         depth = int(r["depth"])
@@ -714,16 +748,21 @@ def to_markdown(df: pd.DataFrame, kind: str, ticker: str = "",
         if is_abstract and all_empty and depth == 0:
             continue
 
-        # Dedup: skip plain row if member row with identical values already rendered
+        # Dedup: plain rows appear first; skip a member row whose values are identical to
+        # the plain row (single-segment: breakdown adds no information).
         if not is_abstract and concept and not all_empty:
             val_key = tuple(None if pd.isna(r[c]) else r[c] for c in vals)
-            cv = (concept, val_key)
-            if not dim and cv in seen_cv:
-                continue
-            seen_cv.add(cv)
+            if not dim:
+                plain_vals[concept] = val_key   # record plain row values
+            elif plain_vals.get(concept) == val_key:
+                continue                         # member = plain → redundant, skip
 
         # Strip [Member] suffix
         label = re.sub(r'\s*\[Member\]$', '', label, flags=re.IGNORECASE).strip()
+
+        # Plain row for a concept that also has segment/member rows: mark as consolidated total
+        if not dim and not is_abstract and concept in concepts_with_members:
+            label = f"{label} (consolidated)"
 
         tag = f" `{concept}`" if (concept and include_tags) else ""
 
@@ -807,8 +846,10 @@ def to_compact(df: pd.DataFrame, kind: str, ticker: str = "",
     # Pre-scan: find member labels that appear across multiple concepts.
     # When the same member (e.g. "Reportable Segment") is used on many concepts,
     # prefix each member row with its concept label so rows are distinguishable.
+    # Also collect which concepts have member rows (for consolidated label suffix).
     member_concept_counts: dict = {}  # member_label -> set of concepts
     concept_labels: dict = {}         # concept -> plain-row label
+    concepts_with_members: set = set()
     for _, r in df.iterrows():
         dim = r.get("dimension_member", "") or ""
         if not isinstance(dim, str):
@@ -818,11 +859,12 @@ def to_compact(df: pd.DataFrame, kind: str, ticker: str = "",
         clean = re.sub(r'\s*\[Member\]$', '', raw_label, flags=re.IGNORECASE).strip()
         if dim and concept and not bool(r["abstract"]):
             member_concept_counts.setdefault(clean, set()).add(concept)
+            concepts_with_members.add(concept)
         elif not dim and not bool(r["abstract"]) and concept:
             concept_labels[concept] = clean
     repeated_members = {m for m, concepts in member_concept_counts.items() if len(concepts) > 1}
 
-    seen_cv: set = set()
+    plain_vals: dict = {}  # concept -> val_key of rendered plain row (for single-segment dedup)
 
     for _, r in df.iterrows():
         depth = int(r["depth"])
@@ -838,16 +880,21 @@ def to_compact(df: pd.DataFrame, kind: str, ticker: str = "",
         if is_abstract and all_empty and depth == 0:
             continue
 
-        # Dedup: skip plain row if a member row with identical values already rendered
+        # Dedup: plain rows appear first; skip a member row whose values are identical to
+        # the plain row (single-segment: breakdown adds no information).
         if not is_abstract and concept and not all_empty:
             val_key = tuple(None if pd.isna(r[c]) else r[c] for c in vals)
-            cv = (concept, val_key)
-            if not dim and cv in seen_cv:
-                continue
-            seen_cv.add(cv)
+            if not dim:
+                plain_vals[concept] = val_key   # record plain row values
+            elif plain_vals.get(concept) == val_key:
+                continue                         # member = plain → redundant, skip
 
         # Strip "[Member]" suffix from labels — it's XBRL boilerplate, not useful display text
         label = re.sub(r'\s*\[Member\]$', '', label, flags=re.IGNORECASE).strip()
+
+        # Plain row for a concept that also has segment/member rows: mark as consolidated total
+        if not dim and not is_abstract and concept in concepts_with_members:
+            label = f"{label} (consolidated)"
 
         indent = "  " * depth
 

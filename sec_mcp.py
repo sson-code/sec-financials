@@ -32,6 +32,11 @@ directly from SEC XBRL filings for any US public company.
 When the user names a company, call start_company(ticker) first.
 It returns every available statement and note for that company's most recent filing.
 Show the list to the user and wait for them to pick one.
+If the user asks specifically about annual or quarterly data, pass period='annual' or
+period='quarterly' to start_company/list_sections/discover so sections come from the
+correct filing type.
+All tools accept a ticker (e.g. AAPL) OR a CIK number (e.g. '1803498'). Use CIK for
+non-traded entities like BDCs, interval funds, and closed-end funds that have no ticker.
 
 ## Fetching data
 Once the user has picked a section and view, call get_statement():
@@ -161,17 +166,24 @@ def _quarterly_gap_note(df) -> str:
 # ------------------------------------------------------------------- tools
 
 @mcp.tool()
-def list_sections(ticker: str) -> str:
+def list_sections(ticker: str, period: str = "") -> str:
     """Quick menu of what's available for a company — core statements and top-level notes.
     Use this first for any open-ended question about what data exists.
     Returns a short list (~20 lines). To see all notes in a category, call discover().
 
     Args:
-        ticker: Stock ticker (e.g. AAPL, META, TSLA, JPM, NYT)
+        ticker: Stock ticker (e.g. AAPL, META, TSLA) OR CIK number (e.g. '1803498' for BCRED).
+                Use CIK for BDCs, interval funds, and other non-traded filers.
+        period: 'annual' to list 10-K sections, 'quarterly' for 10-Q, '' for most recent (default)
     """
     try:
         sec = _sec()
-        resources = _fetch_most_recent(sec, ticker)
+        if period == "annual":
+            resources = _fetch_annual(sec, ticker)
+        elif period == "quarterly":
+            resources = _fetch_quarterly(sec, ticker)
+        else:
+            resources = _fetch_most_recent(sec, ticker)
         _, _, _, _, _, roles, summary, meta = resources
         all_roles = lib.list_all_roles(summary)
 
@@ -206,18 +218,25 @@ def list_sections(ticker: str) -> str:
 
 
 @mcp.tool()
-def discover(ticker: str, category: str = "Notes") -> str:
+def discover(ticker: str, category: str = "Notes", period: str = "") -> str:
     """Full note list for one filing category. Use after list_sections to drill into a category.
     Common categories: Notes, Policies, Details.
     Note names returned here can be passed directly to get_statement().
 
     Args:
-        ticker: Stock ticker (e.g. AAPL, META, TSLA, JPM, NYT)
+        ticker: Stock ticker (e.g. AAPL, META, TSLA) OR CIK number (e.g. '1803498' for BCRED).
+                Use CIK for BDCs, interval funds, and other non-traded filers.
         category: Filing category to list (default 'Notes')
+        period: 'annual' to list 10-K sections, 'quarterly' for 10-Q, '' for most recent (default)
     """
     try:
         sec = _sec()
-        resources = _fetch_most_recent(sec, ticker)
+        if period == "annual":
+            resources = _fetch_annual(sec, ticker)
+        elif period == "quarterly":
+            resources = _fetch_quarterly(sec, ticker)
+        else:
+            resources = _fetch_most_recent(sec, ticker)
         _, _, _, _, _, _, summary, meta = resources
         all_roles = lib.list_all_roles(summary)
 
@@ -258,7 +277,8 @@ def get_statement(ticker: str, section: str = "income_statement",
     include_tags: set True to show XBRL concept tags on each row (default False).
 
     Args:
-        ticker: Stock ticker (e.g. AAPL, META, TSLA, JPM, NYT)
+        ticker: Stock ticker (e.g. AAPL, META, TSLA) OR CIK number (e.g. '1803498' for BCRED).
+                Use CIK for BDCs, interval funds, and other non-traded filers.
         section: Statement name or note name
         period: 'annual' or 'quarterly'
         nth: filing index (0 = most recent). Use 0..7 to walk back through recent quarters.
@@ -337,7 +357,8 @@ def get_history(ticker: str, section: str = "income_statement",
     specific to one filer) will be blank — those only appear in individual filing fetches.
 
     Args:
-        ticker: Stock ticker (e.g. AAPL, META, TSLA, JPM, NYT)
+        ticker: Stock ticker (e.g. AAPL, META, TSLA) OR CIK number (e.g. '1803498' for BCRED).
+                Use CIK for BDCs, interval funds, and other non-traded filers.
         section: income_statement, balance_sheet, or cash_flow
         period: always 'annual' — do not pass 'quarterly'
         years: number of annual periods to return (default 5)
@@ -406,17 +427,24 @@ def get_history(ticker: str, section: str = "income_statement",
 # ---------------------------------------------------------- guided workflow tools
 
 @mcp.tool()
-def start_company(ticker: str) -> str:
+def start_company(ticker: str, period: str = "") -> str:
     """Show every available statement and note for a company's most recent filing.
     Call this first whenever the user names a company.
     Present the list to the user and wait for them to choose.
 
     Args:
-        ticker: Stock ticker (e.g. AAPL, META, TSLA, JPM, NYT)
+        ticker: Stock ticker (e.g. AAPL, META, TSLA) OR CIK number (e.g. '1803498' for BCRED).
+                Use CIK for BDCs, interval funds, and other non-traded filers.
+        period: 'annual' for 10-K sections, 'quarterly' for 10-Q, '' for most recent (default)
     """
     try:
         sec = _sec()
-        resources = _fetch_most_recent(sec, ticker)
+        if period == "annual":
+            resources = _fetch_annual(sec, ticker)
+        elif period == "quarterly":
+            resources = _fetch_quarterly(sec, ticker)
+        else:
+            resources = _fetch_most_recent(sec, ticker)
         _, _, _, _, _, roles, summary, meta = resources
         all_roles = lib.list_all_roles(summary)
 
