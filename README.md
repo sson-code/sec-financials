@@ -94,23 +94,14 @@ Fetch the same statement for multiple companies and compare side by side in one 
 
 ## Setup
 
-### Option A — Claude Desktop (.mcpb)
-
-1. Download **[sec-financials.mcpb](https://github.com/sson-code/sec-financials/releases/latest/download/sec-financials.mcpb)**
-2. Double-click it — Claude Desktop will prompt you to install
-3. Restart Claude Desktop
-
-### Option B — Claude Code
-
-1. Download **[sec-financials.mcpb](https://github.com/sson-code/sec-financials/releases/latest/download/sec-financials.mcpb)** — unzip it
-2. Install dependencies:
+1. Open Terminal
+   - Press **Cmd + Space**, type **Terminal**, press Enter
+2. Paste this and press Enter:
 ```bash
-pip3 install "mcp<2" pandas requests
+curl -fsSL https://raw.githubusercontent.com/sson-code/sec-financials/main/install.sh | bash
 ```
-3. Add to Claude Code (replace the path with wherever you unzipped):
-```bash
-claude mcp add sec-financials -- python3 ~/Downloads/sec-financials/sec_mcp.py
-```
+3. Follow the prompts — it will ask for your name and email (required by the SEC to identify API clients)
+4. Restart Claude Desktop or Claude Code when done
 
 ---
 
