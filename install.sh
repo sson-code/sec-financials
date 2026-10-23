@@ -1,33 +1,23 @@
 #!/usr/bin/env bash
 set -e
 
-REPO="https://github.com/sson-code/sec-financials.git"
-INSTALL_DIR="$HOME/sec-financials"
+# Run from the folder containing this script
+INSTALL_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 echo ""
 echo "SEC Financials MCP — installer"
 echo "================================"
 echo ""
 
-# 1. Clone or update
-if [ -d "$INSTALL_DIR/.git" ]; then
-    echo "Updating existing installation at $INSTALL_DIR..."
-    git -C "$INSTALL_DIR" pull --ff-only
-else
-    echo "Cloning into $INSTALL_DIR..."
-    git clone "$REPO" "$INSTALL_DIR"
-fi
-
-# 2. Install Python dependencies
-echo ""
+# 1. Install Python dependencies
 echo "Installing Python dependencies..."
 pip3 install --quiet "mcp<2" pandas requests
 echo "Done."
 
-# 3. SEC user agent
+# 2. SEC user agent
 echo ""
 echo "The SEC requires a name and email to identify API clients."
-echo "This is stored locally in $INSTALL_DIR/config.json and never shared."
+echo "This is stored locally and never shared."
 echo ""
 read -p "Your name: " UA_NAME
 read -p "Your email: " UA_EMAIL
@@ -39,7 +29,7 @@ cat > "$INSTALL_DIR/config.json" <<EOF
 EOF
 echo "Saved."
 
-# 4. Register with Claude Code (if available)
+# 3. Register with Claude Code (if available)
 echo ""
 if command -v claude &>/dev/null; then
     claude mcp remove sec-financials 2>/dev/null || true
@@ -50,13 +40,12 @@ else
     echo "  claude mcp add sec-financials -- python3 $INSTALL_DIR/sec_mcp.py"
 fi
 
-# 5. Claude Desktop config (optional)
+# 4. Claude Desktop config (optional)
 DESKTOP_CONFIG="$HOME/Library/Application Support/Claude/claude_desktop_config.json"
 if [ -f "$DESKTOP_CONFIG" ]; then
     echo ""
     read -p "Add to Claude Desktop as well? (y/n): " ADD_DESKTOP
     if [[ "$ADD_DESKTOP" =~ ^[Yy]$ ]]; then
-        # Use Python to safely merge into existing JSON
         python3 - "$DESKTOP_CONFIG" "$INSTALL_DIR/sec_mcp.py" <<'PYEOF'
 import json, sys
 config_path, script_path = sys.argv[1], sys.argv[2]

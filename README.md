@@ -94,14 +94,14 @@ Fetch the same statement for multiple companies and compare side by side in one 
 
 ## Setup
 
-1. Open Terminal
-   - Press **Cmd + Space**, type **Terminal**, press Enter
-2. Paste this and press Enter:
-```bash
-curl -fsSL https://raw.githubusercontent.com/sson-code/sec-financials/main/install.sh | bash
+1. Download the zip and unzip it anywhere (e.g. your Downloads folder)
+2. Open Terminal — press **Cmd + Space**, type **Terminal**, press Enter
+3. Drag the unzipped folder into the Terminal window, then type `/install.sh` and press Enter:
 ```
-3. Follow the prompts — it will ask for your name and email (required by the SEC to identify API clients)
-4. Restart Claude Desktop or Claude Code when done
+/Users/you/Downloads/sec-financials/install.sh
+```
+4. Follow the prompts — it will ask for your name and email (required by the SEC to identify API clients)
+5. Restart Claude Desktop or Claude Code when done
 
 ---
 
